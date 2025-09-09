@@ -3,6 +3,7 @@ using JwtAspNet.Models;
 using JwtAspNet.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,7 +23,10 @@ builder.Services.AddAuthentication(x =>
             ValidateAudience = false
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(x =>
+{
+    x.AddPolicy("Admin", policy => policy.RequireRole("admin"));
+});
 
 var app = builder.Build();
 app.UseAuthentication();
@@ -40,6 +44,17 @@ app.MapGet("/login", (AuthService service) => {
     return service.CreateToken(user);
 });
 
-app.MapGet("/restrito", () => "Access Granted").RequireAuthorization();
+app.MapGet("/restrito", (ClaimsPrincipal user) => new
+{
+    id = user.Claims.FirstOrDefault(c => c.Type == "id")?.Value,
+    name = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value,
+    email = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value,
+    image = user.Claims.FirstOrDefault(c => c.Type == "image")?.Value,
+    roles = user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToArray()
+})
+    .RequireAuthorization();
+
+app.MapGet("/admin", () => "Access Granted")
+    .RequireAuthorization("Admin");
 
 app.Run();
